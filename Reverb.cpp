@@ -51,7 +51,7 @@ void Reverb::process(AudioHandle::OutputBuffer buffer, size_t size)
 {
   for(int line = 0; line < numLines; line++)
     for(int sample = 0; sample < (int) size; sample++)
-      delayLines[line][(delayLineIndex + sample) % delayLineSize] = 0.1 * buffer[0][sample]; 
+      delayLines[line][(delayLineIndex + sample) % delayLineSize] = 0.2 * buffer[0][sample]; 
 
   const int sr0 = sampleRate / 1000;
 
@@ -107,12 +107,17 @@ void Reverb::process(AudioHandle::OutputBuffer buffer, size_t size)
 
   }
 
+  /*
   for(int channel = 0; channel < 2; channel++)
     for(int sample = 0; sample < size; sample++)
       for(int line = 0; line < numLines; line += 2)
         buffer[channel][sample] = outputBuffers[line + channel][sample];
-
-  if(status == ARM_MATH_SIZE_MISMATCH) buffer[0][0] = 1;
+  */
+  for(int sample = 0; sample < size; sample++)
+  {
+    buffer[0][sample] = outputBuffers[0][sample] - outputBuffers[2][sample] + outputBuffers[4][sample] - outputBuffers[6][sample];
+    buffer[1][sample] = -outputBuffers[1][sample] + outputBuffers[3][sample] - outputBuffers[5][sample] + outputBuffers[7][sample];
+  }
 
   delayLineIndex += size;
   delayLineIndex %= delayLineSize;
@@ -184,8 +189,6 @@ void Reverb::initializeMatrices()
                    numLines,
                    tmpData);
 
-
-
   arm_mat_mult_f32(&baseMatrix,
                    &baseMatrix,
                    &tmpMatrix);
@@ -199,12 +202,6 @@ void Reverb::initializeMatrices()
   arm_mat_mult_f32(&tmpMatrix,
                    &rotationMatrix,
                    &diffusionMatrix);
-
-  /*
-  arm_mat_mult_f32(&baseMatrix,
-                   &rotationMatrix,
-                   &diffusionMatrix);
-                   */
 
   arm_fill_f32(0.0, feedbackMatrixData, numLines * numLines);
   arm_mat_init_f32(&feedbackMatrix,

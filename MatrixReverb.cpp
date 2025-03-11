@@ -12,7 +12,7 @@ DaisyPatch hw;
 
 TimerHandle timerHandle;
 
-Parameter decayParam, dampParam, modParam;
+Parameter decayParam, dampParam, modParam, mixParam;
 Reverb reverb;
 
 void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, size_t size)
@@ -32,6 +32,13 @@ void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, s
   reverb.setDamp(dampParam.Process());
   reverb.setModulation(modParam.Process());
   reverb.process(out, size);
+
+  for(size_t i = 0; i < size; i++)
+  {
+    float mix = mixParam.Process();
+    out[0][i] = mix * out[0][i] + (1 - mix) * in[0][i];
+    out[1][i] = mix * out[1][i] + (1 - mix) * in[0][i];
+  }
 
   uint32_t t1 = timerHandle.GetUs();
   uint32_t delta = t1 - t0;
@@ -58,6 +65,7 @@ int main(void)
   decayParam.Init(hw.controls[0], 0.0f, 1.0f, Parameter::LINEAR);
   dampParam.Init(hw.controls[1], 0.0f, 1.0f, Parameter::LINEAR);
   modParam.Init(hw.controls[2], 0.0f, 1.0f, Parameter::LINEAR);
+  mixParam.Init(hw.controls[3], 0.0f, 1.0f, Parameter::LINEAR);
 
   TimerHandle::Config config;
   timerHandle.Init(config);

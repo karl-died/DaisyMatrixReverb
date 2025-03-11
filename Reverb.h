@@ -40,8 +40,8 @@ private:
   float damp = 0;
   float mod = 0;
 
-  static constexpr float minDelayMs = 22;
-  static constexpr float maxDelayMs = 60;
+  static constexpr float minDelayMs = 10;
+  static constexpr float maxDelayMs = 80;
   static constexpr int delayLineSize = 2 * (int) maxDelayMs * (sampleRate / 1000) + blockSize;
 
   const float minR = 0.9995;
