@@ -29,7 +29,7 @@ private:
   static constexpr int blockSize = 64;
   static constexpr int numLines = 8;
 
-  const float smoothingMs = 100;
+  const float smoothingMs = 30;
   const float smoothing = pow(0.1, 1000.0 / (smoothingMs * sampleRate));
 
   float decayParam = 0.5;
@@ -49,9 +49,10 @@ private:
 
   float targetDelays[numLines];
   float delays[numLines];
-  float delayLines[numLines][delayLineSize];
+  float delayLines[delayLineSize][numLines];
   int delayLineIndex = 0;
 
+  float feedbackCoeffs[numLines];
   float lowPassSamples[numLines];
   float feedbackSampleData[numLines];
   arm_matrix_instance_f32 feedbackSamples;

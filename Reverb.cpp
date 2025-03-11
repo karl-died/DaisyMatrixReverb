@@ -40,7 +40,11 @@ void Reverb::setDamp(float val)
 void Reverb::setDecay(float val)
 {
   decayParam = val;
+  float r = minR + ((maxR - minR) * pow(decay, 0.3));
+  for(int i = 0; i < numLines; i++)
+    feedbackCoeffs[i] = pow(r, delays[i]);
 }
+
 
 void Reverb::setModulation(float val)
 {
@@ -49,9 +53,9 @@ void Reverb::setModulation(float val)
 
 void Reverb::process(AudioHandle::OutputBuffer buffer, size_t size)
 {
-  for(int line = 0; line < numLines; line++)
-    for(int sample = 0; sample < (int) size; sample++)
-      delayLines[line][(delayLineIndex + sample) % delayLineSize] = 0.2 * buffer[0][sample]; 
+  for(int sample = 0; sample < (int) size; sample++)
+    for(int line = 0; line < numLines; line++)
+      delayLines[(delayLineIndex + sample) % delayLineSize][line] = 0.2 * buffer[0][sample]; 
 
   const int sr0 = sampleRate / 1000;
 
@@ -66,12 +70,12 @@ void Reverb::process(AudioHandle::OutputBuffer buffer, size_t size)
       int interpolationIndex = (delayLineSize + delayLineIndex + sample - (int) modulation - 2) % delayLineSize;
 
       for(int i = 0; i < 4; i++)
-        interpolationSamples[i] = delayLines[line][interpolationIndex];
+        interpolationSamples[i] = delayLines[(interpolationIndex + i) % delayLineSize][line];
       
-      float gamma = (modulation - floor(modulation));
-      float modSample = interpolationSamples[2];
-      //float modSample = gamma * interpolationSamples[1] + (1 - gamma) * interpolationSamples[2];
-      //float modSample = cubicLagrangeInterpolation(interpolationSamples, 1.0 - gamma); 
+      float gamma = 1.0 - (modulation - floor(modulation));
+      //float modSample = interpolationSamples[2];
+      float modSample = (1 - gamma) * interpolationSamples[1] + gamma * interpolationSamples[2];
+      //float modSample = cubicLagrangeInterpolation(interpolationSamples, gamma); 
 
       float l0 = 1 -  (1 - damp) * (1 - damp);
       lowPassSamples[line] = l0 * lowPassSamples[line] + (1 - l0) * modSample;
@@ -103,7 +107,7 @@ void Reverb::process(AudioHandle::OutputBuffer buffer, size_t size)
                      &feedbackOutput);
 
     for(int line = 0; line < numLines; line++)
-      delayLines[line][(delayLineIndex + sample) % delayLineSize] += feedbackOutput.pData[line];
+      delayLines[(delayLineIndex + sample) % delayLineSize][line] += feedbackOutput.pData[line];
 
   }
 
@@ -224,11 +228,11 @@ void Reverb::initializeMatrices()
 
 void Reverb::updateFeedbackMatrix()
 {
-  float r = minR + ((maxR - minR) * pow(decay, 0.3));
   float* feedbackMatrixData = feedbackMatrix.pData;
   for(int i = 0; i < numLines; i++)
-    feedbackMatrixData[i + i * numLines] = pow(r, delays[i]);
+    feedbackMatrixData[i + i * numLines] = smoothing * feedbackMatrixData[i + i * numLines] + (1 - smoothing) * feedbackCoeffs[i];
 }
+
 
 void Reverb::calculateDelays()
 {
@@ -251,10 +255,9 @@ float Reverb::cubicLagrangeInterpolation(float y[4], float x)
       basisPolynomial[i] *= (x - (m - 1)) / ((i - 1) - (m - 1));
   }
     
-  float tmp = 0;
-    
+  float res = 0;
   for(int i = 0; i < 4; i++)
-      tmp += y[i] * basisPolynomial[i];
+      res += y[i] * basisPolynomial[i];
     
-  return tmp;
+  return res;
 }
