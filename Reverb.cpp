@@ -34,28 +34,33 @@ void Reverb::init()
 
 void Reverb::setDamp(float val)
 {
-  dampParam = val;
+  float l0 = (1 - 0.5 * val);
+  float l1 = 1 - l0 * l0;
+  dampParam = l1;
 }
 
 void Reverb::setDecay(float val)
 {
-  decayParam = val;
-  float r = minR + ((maxR - minR) * pow(decay, 0.3));
+  decayParam = 1 - (1 - val) * (1 - val);
+  float r = minR + ((maxR - minR) * pow(decayParam, 0.3));
   for(int i = 0; i < numLines; i++)
     feedbackCoeffs[i] = pow(r, delays[i]);
 }
 
-
 void Reverb::setModulation(float val)
 {
-  modParam = val;
+  modParam = 1 - (1 - val) * (1 - val);
 }
 
 void Reverb::process(AudioHandle::OutputBuffer buffer, size_t size)
 {
+  float padInc = (decayParam - decay) / size;
   for(int sample = 0; sample < (int) size; sample++)
+  {
+    float pad = (1 - 0.8 * (decay + sample * padInc)) / 3;
     for(int line = 0; line < numLines; line++)
-      delayLines[(delayLineIndex + sample) % delayLineSize][line] = 0.2 * buffer[0][sample]; 
+      delayLines[(delayLineIndex + sample) % delayLineSize][line] = pad * buffer[0][sample]; 
+  }
 
   const int sr0 = sampleRate / 1000;
 
@@ -65,7 +70,8 @@ void Reverb::process(AudioHandle::OutputBuffer buffer, size_t size)
   {
     for(int line = 0; line < numLines; line++)
     {
-      float modulation = delays[line] + (modMax * sr0 + mod * modDepth * arm_sin_f32(modLinePhases[line] + modPhase));
+      float modulation = (1 - 0.6 * decay) * sr0 * mod * modDepth * arm_sin_f32(modLinePhases[line] + modPhase);
+      modulation += delays[line];
 
       int interpolationIndex = (delayLineSize + delayLineIndex + sample - (int) modulation - 2) % delayLineSize;
 
@@ -73,12 +79,9 @@ void Reverb::process(AudioHandle::OutputBuffer buffer, size_t size)
         interpolationSamples[i] = delayLines[(interpolationIndex + i) % delayLineSize][line];
       
       float gamma = 1.0 - (modulation - floor(modulation));
-      //float modSample = interpolationSamples[2];
-      float modSample = (1 - gamma) * interpolationSamples[1] + gamma * interpolationSamples[2];
-      //float modSample = cubicLagrangeInterpolation(interpolationSamples, gamma); 
+      float modSample = cubicLagrangeInterpolation(interpolationSamples, gamma); 
 
-      float l0 = 1 -  (1 - damp) * (1 - damp);
-      lowPassSamples[line] = l0 * lowPassSamples[line] + (1 - l0) * modSample;
+      lowPassSamples[line] = damp * lowPassSamples[line] + (1 - damp) * modSample;
 
       if(lowPassSamples[line] >  1) lowPassSamples[line] =  1;
       if(lowPassSamples[line] < -1) lowPassSamples[line] = -1;
@@ -93,12 +96,13 @@ void Reverb::process(AudioHandle::OutputBuffer buffer, size_t size)
     damp = smoothing * damp + (1 - smoothing) * dampParam;
     mod = smoothing * mod + (1 - smoothing) * modParam;
     decay = smoothing * decay + (1 - smoothing) * decayParam;
-    updateFeedbackMatrix();
 
+    updateFeedbackMatrix();
 
     status = arm_mat_mult_f32(&feedbackSamples,
                      &diffusionMatrix,
                      &feedbackOutput);
+                     
 
     arm_copy_f32(feedbackOutput.pData, feedbackSamples.pData, numLines);
 
@@ -108,15 +112,8 @@ void Reverb::process(AudioHandle::OutputBuffer buffer, size_t size)
 
     for(int line = 0; line < numLines; line++)
       delayLines[(delayLineIndex + sample) % delayLineSize][line] += feedbackOutput.pData[line];
-
   }
 
-  /*
-  for(int channel = 0; channel < 2; channel++)
-    for(int sample = 0; sample < size; sample++)
-      for(int line = 0; line < numLines; line += 2)
-        buffer[channel][sample] = outputBuffers[line + channel][sample];
-  */
   for(int sample = 0; sample < size; sample++)
   {
     buffer[0][sample] = outputBuffers[0][sample] - outputBuffers[2][sample] + outputBuffers[4][sample] - outputBuffers[6][sample];
@@ -197,6 +194,12 @@ void Reverb::initializeMatrices()
                    &baseMatrix,
                    &tmpMatrix);
 
+  arm_copy_f32(tmpMatrix.pData, baseMatrix.pData, numLines * numLines);
+
+  arm_mat_mult_f32(&baseMatrix,
+                   &baseMatrix,
+                   &tmpMatrix);
+
   arm_mat_mult_f32(&tmpMatrix,
                    &randomMatrix,
                    &diffusionMatrix);
@@ -228,9 +231,9 @@ void Reverb::initializeMatrices()
 
 void Reverb::updateFeedbackMatrix()
 {
-  float* feedbackMatrixData = feedbackMatrix.pData;
+  float* fbData = feedbackMatrix.pData;
   for(int i = 0; i < numLines; i++)
-    feedbackMatrixData[i + i * numLines] = smoothing * feedbackMatrixData[i + i * numLines] + (1 - smoothing) * feedbackCoeffs[i];
+    fbData[i + i * numLines] = smoothing * fbData[i + i * numLines] + (1 - smoothing) * feedbackCoeffs[i];
 }
 
 

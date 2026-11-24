@@ -36,8 +36,10 @@ void AudioCallback(AudioHandle::InputBuffer in, AudioHandle::OutputBuffer out, s
   for(size_t i = 0; i < size; i++)
   {
     float mix = mixParam.Process();
-    out[0][i] = mix * out[0][i] + (1 - mix) * in[0][i];
-    out[1][i] = mix * out[1][i] + (1 - mix) * in[0][i];
+    float dry = 1 - mix * mix;
+    float wet = 1 - (1 - mix) * (1 - mix);
+    out[0][i] = wet * out[0][i] + dry * in[0][i];
+    out[1][i] = wet * out[1][i] + dry * in[0][i];
   }
 
   uint32_t t1 = timerHandle.GetUs();

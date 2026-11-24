@@ -41,7 +41,7 @@ private:
   float mod = 0;
 
   static constexpr float minDelayMs = 10;
-  static constexpr float maxDelayMs = 80;
+  static constexpr float maxDelayMs = 74;
   static constexpr int delayLineSize = 2 * (int) maxDelayMs * (sampleRate / 1000) + blockSize;
 
   const float minR = 0.9995;
@@ -60,8 +60,7 @@ private:
   arm_matrix_instance_f32 feedbackOutput;
 
   const float modPhaseIncrement = 5.0 / sampleRate;
-  const float modMax = 10.0;
-  float modDepth = 100.0;
+  float modDepth = 2.7;
   float modPhase = 0.0;
   float modLinePhases[numLines];
 
